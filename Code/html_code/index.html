@@ -1,0 +1,1066 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>US Gun Violence Incidents Visualization</title>
+    <script src="https://d3js.org/d3.v5.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.6.0/dist/leaflet.css" integrity="sha512-xwE/Az9zrjBIphAcBb3F6JVqxf46+CDLwfLMHloNu6KEQCAWi6HcDUbeOfBIptF7tcCzusKFjFw2yuvEpDL9wQ==" crossorigin="" />
+    <script src="https://unpkg.com/leaflet@1.6.0/dist/leaflet.js" integrity="sha512-gZwIG9x3wUXg2hdXF6+rVkLF/0Vi9U8D2Ntg4Ga5I5BZpVkVxlJWbSQtXPSiUTtC0TjtGOmxa1AJPuV0CPthew==" crossorigin=""></script>
+
+    <link rel="stylesheet" href="Index.css">
+    <script type="text/javascript" src="us-states.js"></script>
+
+</head>
+
+<body>
+    <div id="main">
+        <h1> How the Number of Gun Violence Incidents in the US Changes from 2013 to 2018? <br> How about the casualties?  </h1>
+        <div id="introduction">
+            <p>This visualisation is based on the dataset Gun Violence Incidents in the US, which is downloaded from <a href="https://www.kaggle.com/jameslko/gun-violence-data">https://www.kaggle.com/jameslko/gun-violence-data</a>, originally from <a href="https://www.gunviolencearchive.org">https://www.gunviolencearchive.org</a>. Gun Violence Archive (GVA) is responsible for collecting, validating, posing and disseminating information.</p>
+            <p>The data makes a record of more than 260k gun violence incidents. This visualisation depicts the trend, distribution and casualties involved in the gun violence incidents in USA from 2013 to 2018. With the use of the filter, users can acquire information of a specific year. Hope this visualisation will make it easier for the general public to study gun violence incidents and make informed predictions about future trends.</p>
+        </div>
+        <div id="filter">
+            <label for="dropDownMenu">Filter Data By Year : </label>
+            <div id="dropDownMenu"></div>
+        </div>
+        <div id="container1">
+            <div id="mapcontainer">
+                <div id="h">
+                    <h3>How Gun Violence Incidents distribute in the US? </h3></div>
+                <div id="h1">
+                    <h3>Top 15 States with the Most Gun Violence Incidents</h3></div>
+                <div id='map'></div>
+            </div>
+            <div id="rose">
+            </div>
+        </div>
+        <div id="container2">
+            <div id="line">
+                <h3 id="h2">What is the Relationship between the Number of Injured and Killed people? </h3>
+            </div>
+            <div id="heatMap">
+                <h3 id="h3">When is a Gun Violence Incident more likely to Happen? </h3>
+            </div>
+
+        </div>
+        <div class="clear"></div>
+        <div id="reference">
+            <h4>Reference:</h4>
+            <ol>
+                <li>
+                    Choropleth maps(with Geojson file) :<a href="https://leafletjs.com/examples/choropleth/">https://leafletjs.com/examples/choropleth/</a>
+                </li>
+                <li>
+                    Filter functions :<a href="https://studres.cs.st-andrews.ac.uk/CS5044/Tutorials/week_10_D3/D3_tutorial_07_dataUpdates.pdf">https://studres.cs.st-andrews.ac.uk/CS5044/Tutorials/week_10_D3/D3_tutorial_07_dataUpdates.pdf</a>
+                </li>
+                <li>
+                    Data Processing and Nest:Vis Exercise 08 <a href="https://studres.cs.st-andrews.ac.uk/CS5044/Tutorials/week_08_D3/D3_concepts_dataTransformations.pdf">https://studres.cs.st-andrews.ac.uk/CS5044/Tutorials/week_08_D3/D3_concepts_dataTransformations.pdf</a>
+                </li>
+                <li>
+                    Line graph:<a href="https://studres.cs.st-andrews.ac.uk/CS5044/Tutorials/week_08_D3/D3_tutorial_05_linegraph.pdf">https://studres.cs.st-andrews.ac.uk/CS5044/Tutorials/week_08_D3/D3_tutorial_05_linegraph.pdf</a>
+                </li>
+        </div>
+    </div>
+    <script>
+
+        var dataPath = "data_cleaned5044.csv";
+
+        //specifies the width, height and margins of our SVG element
+        var width = 700;
+        var height = 450;
+        var margin = 100;
+        var mapdataAll, mapdatabyYear, myDataar, menuItem
+
+        //specifies the parameters of the legend
+        var padding_legend = 9;
+        var width_legend = 150;
+        var innerWidth_legend = width_legend - (padding_legend * 2);
+        var barHeight_legend = 28;
+        var height_legend = 38;
+        var topNumber = 15;
+
+        var geojson
+
+        // converts data format
+        var rowConverter = function(d) {
+            var timeData = d.date;
+            var datum = timeData.split("-")
+            return {
+                date: new Date(datum[0], datum[1] - 1),
+                date1: new Date(datum[0], datum[1] - 1, datum[2]),
+                date2: new Date(datum[0]),
+                value3: d.n_injured,
+                value1: d.n_killed,
+                value: d.Counts,
+                state: d.state
+            }
+        }
+
+        //creates an map element in the body
+        //map reference : the example of choropleth maps with leaflet.js https://leafletjs.com/examples/choropleth/
+        var map = L.map('map').setView([37.8, -96], 4);
+        L.tileLayer('https://api.mapbox.com/styles/v1/{id}/tiles/{z}/{x}/{y}?access_token=pk.eyJ1IjoibWFwYm94IiwiYSI6ImNpejY4NXVycTA2emYycXBndHRqcmZ3N3gifQ.rJcFIG214AriISLbB6B5aw', {
+            maxZoom: 18,
+            attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors, ' +
+                '<a href="https://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, ' +
+                'Imagery © <a href="https://www.mapbox.com/">Mapbox</a>',
+            id: 'mapbox/light-v9',
+            tileSize: 512,
+            zoomOffset: -1
+        }).addTo(map);
+
+        //creates an SVG element in the body
+        // line graph reference : the example given in tutorial：Vis Exercise 05 https://studres.cs.st-andrews.ac.uk/CS5044/Tutorials/week_08_D3/D3_tutorial_05_linegraph.pdf
+        var svg = d3.select("#line")
+            .append("svg")
+            .attr("id", "linesvg")
+            .attr("width", width + margin)
+            .attr("height", height + margin);
+
+        var svg1 = d3.select("#heatMap")
+            .append("svg")
+            .attr("id", "heatMapsvg")
+            .attr("width", width + margin)
+            .attr("height", height + margin);
+
+        var svg2 = d3.select("#rose")
+            .append("svg")
+            .attr("width", width + margin)
+            .attr("id", "rosesvg")
+            .attr("height", height + margin);
+        // data processing reference :Vis Exercise 08  https://studres.cs.st-andrews.ac.uk/CS5044/Tutorials/week_08_D3/D3_concepts_dataTransformations.pdf
+        d3.csv(dataPath, rowConverter)
+            .then(function(data) {
+                console.log(data);
+                mapdataAll = d3.nest()
+                    .key(d => d.state)
+                    .entries(data)
+                mapdatabyYear = d3.nest()
+                    .key(d => d.state)
+                    .key(myData => myData.date.getFullYear())
+                    .rollup(leaves => leaves.length / 2)
+                    .entries(data)
+                console.log(mapdatabyYear)
+                dataProcessing(mapdataAll)
+                datedataPro(mapdatabyYear)
+
+                //add geojson file to map
+                geojson = L.geoJson(statesData, {
+                    style: style,
+                    onEachFeature: onEachFeature
+                }).addTo(map);
+
+                // nests data by month and day
+                var formatMonth = d3.timeFormat("%B");
+                var formatDay = d3.timeFormat("%A");
+
+                // nests  data by date
+                var nestedData2 = d3.nest().key(function(d) {
+                    return formatMonth(new Date(d.date1));
+                }).key(function(d) {
+                    return formatDay(new Date(d.date1));
+                }).rollup(function(incidents) {
+                    return incidents.length / 2;
+                }).entries(data);
+                console.log(nestedData2);
+
+                // nests injured data by date
+                var nestedinjuredData = d3.nest().key(function(d) {
+                    return "injured";
+                }).key(function(d) {
+                    return d.date;
+                }).rollup(function(incidents) {
+                    return d3.sum(incidents, function(d) {
+                        return parseInt(d.value3) / 2;
+                    });
+                }).entries(data);
+                console.log(nestedinjuredData)
+
+                // nests killed data by date
+                var nestedkilledData = d3.nest().key(function(d) {
+                    return "killed";
+                }).key(function(d) {
+                    return d.date;
+                }).rollup(function(incidents) {
+                    return d3.sum(incidents, function(d) {
+                        return parseInt(d.value1) / 2;
+                    });
+                }).entries(data);
+                console.log(nestedkilledData)
+
+              // nests overall data by date
+                var nestedoverallData = d3.nest().key(function(d) {
+                    return "overall";
+                }).key(function(d) {
+                    return d.date;
+                }).rollup(function(incidents) {
+                    return d3.sum(incidents, function(d) {
+                        return (parseInt(d.value1)+parseInt(d.value3)) / 2;
+                    });
+                }).entries(data);
+                console.log(nestedoverallData)
+
+                // filters out a specific year of data
+                // the filter functions reference :D3_tutorial_07_dataUpdates https://studres.cs.st-andrews.ac.uk/CS5044/Tutorials/week_10_D3/D3_tutorial_07_dataUpdates.pdf
+                function filterMapData(year) {
+                    var nestedData1 = d3.nest().key(function(d) {
+                        return "incidents";
+                    }).key(function(d) {
+                        return d.date1;
+                    }).rollup(function(incidents) {
+                        return incidents.length / 2;
+                    }).entries(data);
+
+                    filteredData = JSON.parse(JSON.stringify(nestedData1));
+                    filteredData.forEach(function(d) {
+                        d.values = (d.values).filter(function(date) {
+                            return (new Date(date.key)).getFullYear() == year;
+                        })
+                    })
+
+                    var filteredData3 = d3.nest().key(function(d) {
+                        return formatMonth(new Date(d.key));
+                    }).key(function(d) {
+                        return formatDay(new Date(d.key));
+                    }).rollup(function(incidents) {
+                        return d3.sum(incidents, function(d) {
+                            return parseInt(d.value);
+                        });
+                    }).entries(filteredData[0].values);
+
+                    return filteredData3;
+                }
+
+                //get the number of incidents of a specific date
+                function getValue(month, day, inputData) {
+                    var check = 0;
+                    var checkMonth = new Array();
+                    inputData.forEach(function(d) {
+                        checkMonth.push(d.key);
+                    });
+                    if (checkMonth.indexOf(month) != -1) {
+                        var filterData = inputData.filter(function(date) {
+                            return date.key == month;
+                        })
+                        var checkDay = new Array();
+                        filterData[0].values.forEach(function(d) {
+                            checkDay.push(d.key);
+                        });
+                        if (checkDay.indexOf(day) != -1) {
+                            var filterData1 = filterData[0].values.filter(function(date) {
+                                return date.key == day
+                            })
+                        } else {
+                            check = -1;
+                        }
+                    } else {
+                        check = -1;
+                    }
+
+                    if (check != -1) {
+                        return filterData1[0].value;
+                    } else {
+                        return 0;
+                    }
+                }
+
+                // prepares color for the rectangles
+                function getColor(d, min, max) {
+                    return d > min + (max - min) * 7 / 8 ? '#800026' :
+                        d > min + (max - min) * 6 / 8 ? '#BD0026' :
+                        d > min + (max - min) * 5 / 8 ? '#E31A1C' :
+                        d > min + (max - min) * 4 / 8 ? '#FC4E2A' :
+                        d > min + (max - min) * 3 / 8 ? '#FD8D3C' :
+                        d > min + (max - min) * 2 / 8 ? '#FEB24C' :
+                        d > min + (max - min) * 1 / 8 ? '#FED976' :
+                        d > 0 ? '#FFEDA0' :
+                        '#f4f4f4';
+                }
+
+                // updates the heatmap with the updated data
+                function updateHeatmap(updatedData) {
+                    //removes all rectangles
+                    d3.selectAll(".rect")
+                        .remove();
+                    d3.selectAll(".legend_text")
+                        .remove();
+
+                    // calculates max and min number of incidents (prepares for getColor)
+                    var heatCounts = new Array();
+                    updatedData.forEach(function(d) {
+                        (d.values).forEach(function(e) {
+                            heatCounts.push(e.value);
+                        });
+                    });
+                    var heatExtent = d3.extent(heatCounts, function(d) {
+                        return parseInt(d);
+                    });
+
+                    // removes old y axis
+                    d3.select(".y_axis1").remove();
+
+                    // calculates yScale
+                    var updatedyExtent = new Array();
+                    updatedData.forEach(function(d) {
+                        updatedyExtent.push(d.key);
+                    });
+                    var yScale1 = d3.scaleBand().domain(updatedyExtent).range([80, 80 + (height - 50) * (updatedyExtent.length) / (yExtent.length)]);
+
+                    //adds y axis
+                    var y_axis1 = d3.axisLeft(yScale1);
+                    svg1.append("g")
+                        .attr("class", "y_axis1")
+                        .attr("transform", "translate(" + margin + ", 0)")
+                        .call(y_axis1);
+                    var color_data = new Array();
+
+                    // adds rectangles and tooltip
+                    for (var i = 0; i < 12; i++) {
+                        for (var q = 0; q < 7; q++) {
+                            var val = getValue(yExtent[i], Day[q], updatedData);
+                            var col = getColor(val, heatExtent[0], heatExtent[1]);
+                            d3.select("#heatMapsvg")
+                                .append("rect")
+                                .attr("class", "rect")
+                                .attr("width", 85.95)
+                                .attr("height", 33.45)
+                                .attr("x", (margin + 85.95 * q))
+                                .attr("y", (80 + 33.45 * i))
+                                .style("opacity", 0.7)
+                                .style("fill", col)
+                                .on("mouseenter", function(d) {
+                                    var q = Math.round((this.x.animVal.value - margin) / 85.95);
+                                    var i = Math.round((this.y.animVal.value - 80) / 33.45);
+                                    var val = getValue(yExtent[i], Day[q], updatedData);
+                                    d3.selectAll(".tooltip_text")
+                                        .style("opacity", 0);
+                                    d3.select(this)
+                                        .transition()
+                                        .duration(500)
+                                        .style("stroke", "black")
+                                        .style("stroke-width", 4);
+                                    d3.select("#heatMapsvg")
+                                        .append("text")
+                                        .attr("class", "tooltip")
+                                        .attr("x", 500)
+                                        .attr("y", 40)
+                                        .text(yExtent[i] + " " + Day[q] + " : " + val);
+                                })
+                                .on("mouseout", function(d) {
+                                    d3.select(this)
+                                        .transition()
+                                        .duration(500)
+                                        .style("stroke", null);
+                                    d3.selectAll(".tooltip_text")
+                                        .style("opacity", 1);
+                                    d3.selectAll(".tooltip")
+                                        .remove();
+
+                                });
+                        }
+                    }
+
+                    //prepares color data for the legend
+                    var min = heatExtent[0];
+                    var max = heatExtent[1];
+
+                    var color_data = [{
+                        "color": "#FFEDA0",
+                        "value": min
+                    }, {
+                        "color": "#FED976",
+                        "value": min + (max - min) * 1 / 8
+                    }, {
+                        "color": "#FEB24C",
+                        "value": min + (max - min) * 2 / 8
+                    }, {
+                        "color": "#FD8D3C",
+                        "value": min + (max - min) * 3 / 8
+                    }, {
+                        "color": "#FC4E2A",
+                        "value": min + (max - min) * 4 / 8
+                    }, {
+                        "color": "#E31A1C",
+                        "value": min + (max - min) * 5 / 8
+                    }, {
+                        "color": "#BD0026",
+                        "value": min + (max - min) * 6 / 8
+                    }, {
+                        "color": "#800026",
+                        "value": min + (max - min) * 7 / 8
+                    }];
+
+                    // finds the extent of the color
+                    var colorExtent = d3.extent(color_data, d => d.value);
+
+                    //creates gradient colors
+                    var g = d3.select("#heatMapsvg").append("g").attr("transform", "translate(" + padding_legend + ", 0)");
+                    var linearGradient = d3.select("#heatMapsvg").append("linearGradient").attr("id", "myGradient");
+                    linearGradient.selectAll("stop")
+                        .data(color_data)
+                        .enter().append("stop")
+                        .attr("offset", d => ((d.value - colorExtent[0]) / (colorExtent[1] - colorExtent[0]) * 100) + "%")
+                        .attr("stop-color", d => d.color);
+
+                    // adds the gradient rectangle to svg
+                    g.append("rect")
+                        .attr("width", innerWidth_legend)
+                        .attr("height", barHeight_legend)
+                        .attr("x", 240)
+                        .attr("y", 0)
+                        .style("fill", "url(#myGradient)");
+
+                    // adds legend text
+                    d3.select("#heatMapsvg")
+                        .append("text")
+                        .attr("class", "legend_text")
+                        .attr("x", 240)
+                        .attr("y", 47)
+                        .text(min);
+
+                    d3.select("#heatMapsvg")
+                        .append("text")
+                        .attr("class", "legend_text")
+                        .attr("x", 370)
+                        .attr("y", 47)
+                        .text(max);
+
+                    console.log(heatExtent);
+                }
+
+                function filterData(year, nestedData0) {
+                    filteredData = JSON.parse(JSON.stringify(nestedData0));
+                    filteredData.forEach(function(d) {
+                        d.values = (d.values).filter(function(date) {
+                            return (new Date(date.key)).getFullYear() == year;
+                        })
+                    })
+                    console.log(filteredData);
+                    return filteredData;
+                }
+
+                //updates the line graph
+                function updateTimeline(updatedData, updatedData1,updatedData4, initial) {
+                    var incidents = new Array();
+
+                    updatedData4.forEach(function(d) {
+                        (d.values).forEach(function(e) {
+                            incidents.push(e);
+                        })
+                    })
+
+                    let timeExtent1 = d3.extent(incidents, function(d) {
+                        return new Date(d.key);
+                    })
+
+                    // resets xScale
+                    var xScale = d3.scaleTime().domain(timeExtent1).range([0, width - 100]);
+
+                    var sumExtent = d3.extent(incidents, function(d) {
+                            return parseInt(d.value);
+                        })
+                        // resets yScale
+                    var yScale = d3.scaleLinear().domain([0, d3.max(sumExtent)]).range([height, 50]);
+
+                    var x_axis = d3.axisBottom(xScale);
+                    var y_axis = d3.axisLeft(yScale);
+                    // console.log(y_axis)
+
+                    // removes old axises
+                    d3.selectAll(".axis").remove();
+
+                    // inserts new X axis and Y axis
+                    d3.select("#linesvg")
+                        .append("g")
+                        .attr("class", "x axis")
+                        .attr("transform", "translate(" + margin + ", " + height + ")")
+                        .call(x_axis.ticks(d3.timeMonth.every(1)).tickFormat(d3.timeFormat("%Y-%B")))
+                        .selectAll("text").style("text-anchor", "end")
+                        .attr("dx", "-0.8em")
+                        .attr("dy", "0.15em")
+                        .attr("transform", "rotate(-75)");
+
+                    d3.select("#linesvg")
+                        .append("g")
+                        .attr("class", "y axis")
+                        .attr("transform", "translate(" + margin + ", 0)")
+                        .call(y_axis);
+
+                    //inserts the name of y axis
+                    d3.select(".y.axis")
+                        .append("text")
+                        .text("Number of People Involved")
+                        .style("fill", "black")
+                        .style("font-size", "14px")
+                        .attr("transform", "rotate(-90,0," + (margin - 40) + ") translate (" + (-margin + 140) + ",0)");
+
+                    // creates new lineGenerator
+                    var lineGenerator = d3.line()
+                        .x(function(d) {
+                            return margin + xScale(new Date(d.key));
+                        })
+                        .y(function(d) {
+                            return yScale(parseInt(d.value));
+                        });
+
+                    // inserts the injured line and the killed line
+                    var injured = updatedData[0];
+                    var killed = updatedData1[0];
+                    var overall=updatedData4[0];
+                    //initializes the line graph
+                    if (initial != -1) {
+                        svg.append("path")
+                            .datum(injured.values)
+                            .attr("class", "line injured")
+                            .attr("d", lineGenerator);
+                        svg.append("path")
+                            .datum(killed.values)
+                            .attr("class", "line killed")
+                            .attr("d", lineGenerator);
+                            svg.append("path")
+                                .datum(overall.values)
+                                .attr("class", "line overall")
+                                .attr("d", lineGenerator);
+                    }
+                    //changes the line graph with the transition effect
+                    else {
+                        var injuredLine = d3.selectAll(".injured")
+                            .datum(injured.values);
+                        injuredLine.transition().duration(500).attr("d", lineGenerator);
+
+                        var killedLine = d3.selectAll(".killed")
+                            .datum(killed.values);
+                        killedLine.transition().duration(500).attr("d", lineGenerator);
+                        var overallLine = d3.selectAll(".overall")
+                            .datum(overall.values);
+                        overallLine.transition().duration(500).attr("d", lineGenerator);
+                    }
+
+                    //creates new line circles
+                    var injuredLineCircles = svg.selectAll(".circleInjured").data(injured.values);
+                    var killedLineCircles = svg.selectAll(".circleKilled").data(killed.values);
+                    var overallLineCircles=svg.selectAll(".circleOverall").data(overall.values);
+                    //remoes old circles
+                    injuredLineCircles.exit().remove();
+                    killedLineCircles.exit().remove();
+                    overallLineCircles.exit().remove();
+                    //inserts new line circles and tooltips
+                    injuredLineCircles.transition().duration(500)
+                        .attr("cx", function(d) {
+                            return margin + xScale(new Date(d.key));
+                        })
+                        .attr("cy", function(d) {
+                            return yScale(parseInt(d.value));
+                        });
+
+                    killedLineCircles.transition().duration(500)
+                        .attr("cx", function(d) {
+                            return margin + xScale(new Date(d.key));
+                        })
+                        .attr("cy", function(d) {
+                            return yScale(parseInt(d.value));
+                        });
+                        overallLineCircles.transition().duration(500)
+                            .attr("cx", function(d) {
+                                return margin + xScale(new Date(d.key));
+                            })
+                            .attr("cy", function(d) {
+                                return yScale(parseInt(d.value));
+                            });
+
+                    injuredLineCircles.enter().append("circle")
+                        .attr("class", "circleInjured")
+                        .attr("cx", function(d) {
+                            return margin + xScale(new Date(d.key));
+                        })
+                        .attr("cy", function(d) {
+                            return yScale(parseInt(d.value));
+                        })
+                        .attr("r", 2).on("mouseenter", function(d) { // creates tooltip
+                            d3.select(this)
+                                .transition()
+                                .duration(500)
+                                .attr("r", 5)
+                                .style("fill", "#CDF76C");
+
+                            d3.select("#linesvg")
+                                .append("text")
+                                .attr("class", "tooltip")
+                                .attr("x", 600)
+                                .attr("y", 40)
+                                .text(format(new Date(d.key)) + " Injured: " + d.value);
+
+                            d3.select(".tooltip_textline")
+                                .style("opacity", 0);
+                        })
+                        .on("mouseout", function(d) {
+                            d3.select(this)
+                                .transition()
+                                .duration(500)
+                                .attr("r", 2)
+                                .style("fill", "#2D4687");
+                            d3.selectAll(".tooltip")
+                                .remove();
+                            d3.select(".tooltip_textline")
+                                .style("opacity", 1);
+                        });
+
+                    killedLineCircles.enter().append("circle")
+                        .attr("class", "circleKilled")
+                        .attr("cx", function(d) {
+                            return margin + xScale(new Date(d.key));
+                        })
+                        .attr("cy", function(d) {
+                            return yScale(parseInt(d.value));
+                        })
+                        .attr("r", 2)
+                        .on("mouseenter", function(d) { // creates tooltip
+                            d3.select(this)
+                                .transition()
+                                .duration(500)
+                                .attr("r", 5)
+                                .style("fill", "#CDF76C");
+                            d3.select("#linesvg")
+                                .append("text")
+                                .attr("class", "tooltip")
+                                .attr("x", 600)
+                                .attr("y", 40)
+                                .text(format(new Date(d.key)) + " Killed: " + d.value);
+                            d3.select(".tooltip_textline")
+                                .style("opacity", 0);
+                        })
+                        .on("mouseout", function(d) {
+                            d3.select(this)
+                                .transition()
+                                .duration(500)
+                                .attr("r", 2)
+                                .style("fill", "#DA662C");
+                            d3.selectAll(".tooltip")
+                                .remove();
+                            d3.select(".tooltip_textline")
+                                .style("opacity", 1);
+                        });
+
+                        overallLineCircles.enter().append("circle")
+                            .attr("class", "circleOverall")
+                            .attr("cx", function(d) {
+                                return margin + xScale(new Date(d.key));
+                            })
+                            .attr("cy", function(d) {
+                                return yScale(parseInt(d.value));
+                            })
+                            .attr("r", 2)
+                            .on("mouseenter", function(d) { // creates tooltip
+                                d3.select(this)
+                                    .transition()
+                                    .duration(500)
+                                    .attr("r", 5)
+                                    .style("fill", "#CDF76C");
+                                d3.select("#linesvg")
+                                    .append("text")
+                                    .attr("class", "tooltip")
+                                    .attr("x", 600)
+                                    .attr("y", 40)
+                                    .text(format(new Date(d.key)) + " Overall: " + d.value);
+                                d3.select(".tooltip_textline")
+                                    .style("opacity", 0);
+                            })
+                            .on("mouseout", function(d) {
+                                d3.select(this)
+                                    .transition()
+                                    .duration(500)
+                                    .attr("r", 2)
+                                    .style("fill", "#DB44A8");
+                                d3.selectAll(".tooltip")
+                                    .remove();
+                                d3.select(".tooltip_textline")
+                                    .style("opacity", 1);
+                            });
+
+                }
+
+                // when choosing "all", x axis shows every 4 months, otherwise x axis shows every month.
+                function updateXaxis() {
+                    d3.select(".x.axis").remove();
+                    let xScale = d3.scaleTime().domain(timeExtent).range([0, width - 100]);
+                    let x_axis = d3.axisBottom(xScale);
+                    svg.append("g").attr("class", "x axis").attr("transform", "translate(" + margin + ", " + height + ")")
+                        .call(x_axis.ticks(d3.timeMonth.every(4)).tickFormat(d3.timeFormat("%Y-%B")))
+                        .selectAll("text").style("text-anchor", "end")
+                        .attr("dx", "-0.8em")
+                        .attr("dy", "0.15em")
+                        .attr("transform", "rotate(-75)");
+                }
+                var dropDownMenu = d3.select("#dropDownMenu");
+                var allOption = ["all"];
+                // nests data by year
+                let nestByYear = d3.nest().key(function(d) {
+                        return (d.date).getFullYear();
+                    })
+                    .entries(data);
+                console.log(nestByYear);
+                var timeExtent = d3.extent(data, function(d) {
+                    return d.date;
+                });
+                //nests data by state
+                var nestedData3 = d3.nest().key(function(d) {
+                    return "state";
+                }).key(function(d) {
+                    return d.state;
+                }).rollup(function(incidents) {
+                    return incidents.length / 2;
+                }).entries(data);
+                console.log(nestedData3);
+
+                // picks out top 15 states
+                var topData = nestedData3[0].values.sort(function(a, b) {
+                    return d3.descending(+a.value, +b.value);
+                }).slice(0, topNumber);
+
+                console.log(topData);
+
+                // filters out a specific year of data
+                function filterRoseData(year) {
+                    var nestedData5 = d3.nest().key(function(d) {
+                        return "rose";
+                    }).key(function(d) {
+                        return d.date2;
+                    }).key(function(d) {
+                        return d.state;
+                    }).rollup(function(incidents) {
+                        return incidents.length / 2;
+                    }).entries(data);
+
+                    filteredData5 = JSON.parse(JSON.stringify(nestedData5));
+                    filteredData5.forEach(function(d) {
+                        d.values = (d.values).filter(function(date) {
+                            return (new Date(date.key)).getFullYear() == year;
+                        })
+                    })
+                    console.log(filteredData5)
+                    var filteredtopData = (filteredData5[0].values)[0].values.sort(function(a, b) {
+                        return d3.descending(+a.value, +b.value);
+                    }).slice(0, topNumber);
+                    console.log(filteredtopData)
+                    return filteredtopData;
+                }
+
+                // updates the rose diagram based on the updated data
+                function updateRose(updatedData) {
+                    // delete old legend_test and arc
+                    d3.selectAll(".legend_text1")
+                        .remove();
+                    d3.selectAll(".arc")
+                        .remove();
+
+                    // calculates min and max value
+                    var topCounts = new Array();
+                    updatedData.forEach(function(d) {
+                        topCounts.push(d.value);
+                    });
+
+                    var topExtent = d3.extent(topCounts, function(d) {
+                        return parseInt(d);
+                    });
+
+                    // returns the number of gun incidents of a state
+                    function getValue(i) {
+                        return updatedData[i].value;
+                    }
+
+                    //returns the radius of the arc
+                    function getRadius(i) {
+                        if (i == 0) {
+                            return 280;
+                        } else {
+                            var base = Math.sqrt(updatedData[0].value * updatedData[0].value / Math.PI) / 40
+                            var now = Math.sqrt(updatedData[i].value * updatedData[i].value / Math.PI) / 40
+                            return (now / base) * 280;
+                        }
+                    }
+
+                    //returns the start angle of the arc
+                    function getStartAngle(i) {
+                        if (i == 0) {
+                            return 360 * (Math.PI / 180);
+                        } else {
+                            return (topNumber - i) * (360 / topNumber) * (Math.PI / 180);
+                        }
+                    }
+
+                    //returns the end angle of the arc
+                    function getEndAngle(i) {
+                        return (topNumber - 1 - i) * (360 / topNumber) * (Math.PI / 180);
+                    }
+
+                    //returns the color of the arc
+
+                    function getColor(d, min, max) {
+                        return d > min + (max - min) * 11 / 12 ? '#800026' :
+                            d > min + (max - min) * 10 / 12 ? '#BD0026' :
+                            d > min + (max - min) * 8 / 12 ? '#E31A1C' :
+                            d > min + (max - min) * 6 / 12 ? '#FC4E2A' :
+                            d > min + (max - min) * 4 / 12 ? '#FD8D3C' :
+                            d > min + (max - min) * 3 / 12 ? '#FEB24C' :
+                            d > min + (max - min) * 1 / 12 ? '#FED976' :
+                            d >= min ? '#FFEDA0' :
+                            '#f4f4f4';
+                    }
+
+                    //draws arcs
+                    for (var i = 0; i < topNumber; i++) {
+                        //creates arc
+                        var arc = d3.arc()
+                            .innerRadius(0)
+                            .outerRadius(getRadius(i))
+                            .startAngle(getStartAngle(i)) //converting from degs to radians
+                            .endAngle(getEndAngle(i));
+
+                        //creates tooltip
+                        var div = d3.select("#rose").append("div")
+                            .attr("class", "rose_tooltip")
+                            .style("display", "none");
+
+                        //adds arc and tooltip to the svg
+                        d3.select("#rosesvg")
+                            .append("path")
+                            .attr("d", arc)
+                            .attr("class", "arc")
+                            .attr("id", i)
+                            .attr("transform", "translate(250,300)")
+                            .style("opacity", 0.7)
+                            .style("fill", getColor(getValue(i), topExtent[0], topExtent[1]))
+                            .on("mouseenter", function(d) {
+                                d3.select(this)
+                                    .style("stroke", "green")
+                                    .style("stroke-width", 5);
+                                div.style("display", "inline");
+                            })
+                            .on("mouseover", function(d) {
+                                div.text(updatedData[this.id].key + ": " + updatedData[this.id].value + " incidents")
+                                    .style("left", (d3.event.pageX - 34) + "px")
+                                    .style("top", (d3.event.pageY - 12) + "px");
+                            })
+                            .on("mouseout", function(d) {
+                                d3.select(this)
+                                    .transition()
+                                    .duration(500)
+                                    .style("stroke", null);
+                                div.style("display", "none");
+                            });
+
+                    }
+                    //creates gradient color legend
+                    let min = topExtent[0];
+                    let max = topExtent[1];
+                    console.log(min);
+                    console.log(max)
+                    var color_data = [{
+                        "color": "#FFEDA0",
+                        "value": min
+                    }, {
+                        "color": "#FED976",
+                        "value": min + (max - min) * 1 / 12
+                    }, {
+                        "color": "#FEB24C",
+                        "value": min + (max - min) * 3 / 12
+                    }, {
+                        "color": "#FD8D3C",
+                        "value": min + (max - min) * 4 / 12
+                    }, {
+                        "color": "#FC4E2A",
+                        "value": min + (max - min) * 6 / 12
+                    }, {
+                        "color": "#E31A1C",
+                        "value": min + (max - min) * 8 / 12
+                    }, {
+                        "color": "#BD0026",
+                        "value": min + (max - min) * 10 / 12
+                    }, {
+                        "color": "#800026",
+                        "value": min + (max - min) * 11 / 12
+                    }];
+
+                    // finds the extent of the color
+                    var colorExtent = d3.extent(color_data, d => d.value);
+
+                    //creates gradient colors
+                    var g = d3.select("#rosesvg").append("g").attr("transform", "translate(" + padding_legend + ", 0)");
+                    var linearGradient = d3.select("#rosesvg").append("linearGradient").attr("id", "myGradient");
+                    linearGradient.selectAll("stop")
+                        .data(color_data)
+                        .enter().append("stop")
+                        .attr("offset", d => ((d.value - colorExtent[0]) / (colorExtent[1] - colorExtent[0]) * 100) + "%")
+                        .attr("stop-color", d => d.color);
+
+                    // adds the gradient rectangle to svg
+                    g.append("rect")
+                        .attr("width", innerWidth_legend)
+                        .attr("height", barHeight_legend)
+                        .attr("x", 300)
+                        .attr("y", 0)
+                        .style("fill", "url(#myGradient)");
+
+                    // adds legend text
+                    d3.select("#rosesvg")
+                        .append("text")
+                        .attr("class", "legend_text1")
+                        .attr("x", 300)
+                        .attr("y", 47)
+                        .text(min);
+
+                    d3.select("#rosesvg")
+                        .append("text")
+                        .attr("class", "legend_text1")
+                        .attr("x", 430)
+                        .attr("y", 47)
+                        .text(max);
+
+                }
+
+                // appends options to the dropDownMenu
+                dropDownMenu.append("select")
+                    .selectAll("option")
+                    .data(allOption)
+                    .enter()
+                    .append("option")
+                    .attr("value", function(d) {
+                        return d;
+                    }).text(function(d) {
+                        return d;
+                    })
+                    .append("select")
+                    .select("option")
+                    .data(nestByYear)
+                    .enter()
+                    .append("option")
+                    .attr("value", function(d) {
+                        return d.key;
+                    }).text(function(d) {
+                        return d.key;
+                    });
+
+                // adds functions to the dropDownMenu
+                dropDownMenu.on('change', function() {
+                        menuItem = d3.select(this).select("select").property("value");
+                        console.log(menuItem);
+                        updateLegend()
+                        if (menuItem != "all") {
+                            geojson = L.geoJson(statesData, {
+                                style: updateStyle,
+                                onEachFeature: onEachFeature
+                            }).addTo(map);
+                            var filteredData = filterData(menuItem, nestedinjuredData);
+                            var filteredData1 = filterData(menuItem, nestedkilledData);
+                            var filteredData4=filterData(menuItem, nestedoverallData);
+                            var filteredData3 = filterRoseData(menuItem);
+                            updateRose(filteredData3);
+                            updateTimeline(filteredData, filteredData1,filteredData4, -1);
+                            var filteredData2 = filterMapData(menuItem);
+                            updateHeatmap(filteredData2);
+                        } else {
+                            geojson = L.geoJson(statesData, {
+                                style: style,
+                                onEachFeature: onEachFeature
+                            }).addTo(map);
+                            updateTimeline(nestedinjuredData, nestedkilledData,nestedoverallData, -1);
+                            updateXaxis();
+                            updateHeatmap(nestedData2);
+                            updateRose(topData);
+                        }
+                    })
+
+                //initialises the rose diagram
+                updateRose(topData);
+
+                // initializes the line graph
+                updateTimeline(nestedinjuredData, nestedkilledData,nestedoverallData, 0);
+                updateXaxis();
+
+                //inserts legends
+                svg.append("circle").attr("cx", 260).attr("cy", 12).attr("r", 6).style("fill", "#2D4687")
+                svg.append("text").attr("x", 280).attr("y", 12).text("Injured").style("font-size", "15px").attr("alignment-baseline", "middle")
+                svg.append("circle").attr("cx", 360).attr("cy", 12).attr("r", 6).style("fill", "#DA662C")
+                svg.append("text").attr("x", 380).attr("y", 12).text("Killed").style("font-size", "15px").attr("alignment-baseline", "middle")
+                svg.append("circle").attr("cx", 160).attr("cy", 12).attr("r", 6).style("fill", "#DB44A8")
+                svg.append("text").attr("x", 180).attr("y", 12).text("Overall").style("font-size", "15px").attr("alignment-baseline", "middle")
+                // adds background and text to the tooltip
+                var format = d3.timeFormat("%Y %B");
+                d3.select("#linesvg")
+                    .append("rect")
+                    .attr("width", 250)
+                    .attr("height", 50)
+                    .attr("x", 570)
+                    .attr("y", 0)
+                    .style("opacity", 0.3)
+                    .style("fill", "#596275");
+
+                d3.select("#linesvg")
+                    .append("text")
+                    .attr("x", 600)
+                    .attr("y", 16)
+                    .text("Number of People Involved");
+
+                d3.select("#linesvg")
+                    .append("text")
+                    .attr("class", "tooltip_textline")
+                    .attr("x", 600)
+                    .attr("y", 40)
+                    .style("color", "#666666")
+                    .text("Hover over the circle");
+
+                // initializes x axis
+                var Day = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+                var xScale1 = d3.scaleBand().domain(Day).range([0, width - 100]);
+                var x_axis1 = d3.axisTop(xScale1);
+
+
+                // adds x axix
+                d3.select("#heatMapsvg")
+                    .append("g")
+                    .attr("class", "x axis1")
+                    .attr("transform", "translate(" + margin + ", " + (margin - 20) + ")")
+                    .call(x_axis1);
+
+                // initializes yExtent
+                var yExtent = new Array();
+                nestedData2.forEach(function(d) {
+                    yExtent.push(d.key);
+                });
+
+                // creates rectangle for the heatmap
+                updateHeatmap(nestedData2);
+
+                // adds background and text to the tooltip
+                d3.select("#heatMapsvg")
+                    .append("rect")
+                    .attr("width", 230)
+                    .attr("height", 45)
+                    .attr("x", 470)
+                    .attr("y", 0)
+                    .style("opacity", 0.3)
+                    .style("fill", "#596275")
+
+                d3.select("#heatMapsvg")
+                    .append("text")
+                    .attr("x", 500)
+                    .attr("y", 16)
+                    .text("Number of Incidents");
+
+                d3.select("#heatMapsvg")
+                    .append("text")
+                    .attr("class", "tooltip_text")
+                    .attr("x", 500)
+                    .attr("y", 40)
+                    .style("color", "#666666")
+                    .text("Hover over the rectangle");
+
+            })
+    </script>
+    <script type="text/javascript" src="map.js"></script>
+
+</body>
+
+</html>
